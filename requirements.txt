@@ -1,8 +1,10 @@
 # Core DBT and Postgres support
 # Compatible with Python 3.12.7
 
+# dbt-core version 1.9.4 is compatible with Python 3.12
 dbt-core==1.9.4
-# dbt-postgres is included in dbt-core 1.9+, no separate package needed
+# dbt-postgres 
+dbt-postgres==1.9.0
 # See: https://docs.getdbt.com/docs/core/connect-data-platform/postgres
 psycopg2-binary>=2.9.9
 
@@ -20,6 +22,3 @@ requests>=2.31.0
 
 # If using Ollama Python SDK (uncomment if needed)
 # ollama>=0.1.0
-
-# Pin protobuf to avoid dependency conflicts with grpcio-tools, grpcio-status, and opentelemetry-proto
-protobuf>=5.26.1,<6.0
