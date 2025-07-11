@@ -1,0 +1,24 @@
+# Core DBT and Postgres support
+# Compatible with Python 3.12.7
+
+# dbt-core version 1.9.4 is compatible with Python 3.12
+dbt-core==1.9.4
+# dbt-postgres 
+dbt-postgres==1.9.0
+# See: https://docs.getdbt.com/docs/core/connect-data-platform/postgres
+psycopg2-binary>=2.9.9
+
+# Streamlit UI
+streamlit>=1.30.0
+
+# YAML, environment, HTTP utilities
+pyyaml>=6.0
+python-dotenv>=1.0.0
+requests>=2.31.0
+
+# Optional: For type checking and linting (dev only)
+# mypy>=1.8.0
+# flake8>=7.0.0
+
+# If using Ollama Python SDK (uncomment if needed)
+# ollama>=0.1.0
