@@ -1,0 +1,20 @@
+version: 2
+
+models:
+  - name: dim_sellers
+    description: "Seller dimension table containing seller attributes from Olist e-commerce data"
+    columns:
+      - name: seller_id
+        description: "Unique identifier for each seller"
+        tests:
+          - unique
+          - not_null
+      
+      - name: seller_zip_code
+        description: "Seller's postal code"
+
+      - name: seller_city
+        description: "City where the seller is located"
+
+      - name: seller_state
+        description: "State where the seller is located"

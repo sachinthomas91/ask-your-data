@@ -1,0 +1,75 @@
+
+# Name your project! Project names should contain only lowercase characters
+# and underscores. A good package name should reflect your organization's
+# name or the intended use of these models
+name: 'dbt_ask_data'
+version: '1.0.0'
+
+# This setting configures which "profile" dbt uses for this project.
+profile: 'dbt_ask_data'
+
+# These configurations specify where dbt should look for different types of files.
+# The `model-paths` config, for example, states that models in this project can be
+# found in the "models/" directory. You probably won't need to change these!
+model-paths: ["models"]
+analysis-paths: ["analyses"]
+test-paths: ["tests"]
+seed-paths: ["seeds"]
+macro-paths: ["macros"]
+snapshot-paths: ["snapshots"]
+
+clean-targets:         # directories to be removed by `dbt clean`
+  - "target"
+  - "dbt_packages"
+
+
+# Configuring models
+# Full documentation: https://docs.getdbt.com/docs/configuring-models
+
+# In this example config, we tell dbt to build all models in the example/
+# directory as views. These settings can be overridden in the individual model
+# files using the `{{ config(...) }}` macro.
+models:
+  dbt_ask_data:
+    # Config indicated by + and applies to all files under models/folder_name
+
+    # example:
+    #   +materialized: table  # Override materialization for models in the example folder
+    #   +schema: example     # Override schema for models in the example folder
+
+    staging:
+      +materialized: view
+      +schema: staging # This schema is used for staging and cleaning data
+      +persist_docs:
+        relation: true     # persist table descriptions
+        columns: true      # persist column descriptions
+    
+    intermediate:
+      +materialized: table
+      +schema: intermediate # This schema is used for logic and transformations
+      +persist_docs:
+        relation: true     # persist table descriptions
+        columns: true      # persist column descriptions
+
+    marts:
+      analytics:
+        +materialized: view
+        +schema: analytics # This schema is used for analytics and reporting
+        +persist_docs:
+          relation: true     # persist table descriptions
+          columns: true      # persist column descriptions
+
+# This is the default schema where dbt will create seeds and snapshots.
+# You can override this in your dbt profile.
+seeds:
+  dbt_ask_data:
+      +materialized: seed
+      +schema: seeds # This schema is used for seed data
+
+snapshots:
+  dbt_ask_data:
+      +materialized: table
+      +schema: snapshots # This schema is used for snapshots
+      +persist_docs:
+        relation: true     # persist table descriptions
+        columns: true      # persist column descriptions
