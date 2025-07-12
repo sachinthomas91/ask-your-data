@@ -75,3 +75,7 @@ build/
 
 # Node modules (if any JS tooling is used)
 /node_modules/
+
+# Ignore ChromaDB persistent store
+.chroma_store/
+
