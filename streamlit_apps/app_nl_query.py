@@ -12,7 +12,7 @@ PROJECT_ROOT = pathlib.Path(__file__).resolve().parents[1]
 DB_PATH = str(PROJECT_ROOT / ".chroma_store")
 COLLECTION_NAME = "dbt_schema_models"
 OLLAMA_EMBED_MODEL = "nomic-embed-text"
-OLLAMA_CHAT_MODEL = "mistral"  # or any other model you prefer
+OLLAMA_CHAT_MODEL = "mistral" # "qwen2:7b"  # or any other model you prefer
 OLLAMA_BASE_URL = "http://localhost:11434/api"
 
 print(f"[INFO] Looking for ChromaDB store at: {DB_PATH}")
@@ -95,9 +95,13 @@ def is_sql_query_request(query: str) -> bool:
     return any(keyword.lower() in query.lower() for keyword in sql_keywords)
 
 def generate_sql_query(query: str, context: str) -> str:
-    system_prompt = """You are a SQL expert. Based on the dbt model documentation provided, 
-    generate a SQL query that answers the user's question. Include comments explaining the query.
-    Only return the SQL query with comments, nothing else. Use proper SQL formatting."""
+    system_prompt = """
+    - Your query must be well-structured, cleanly formatted, and easy to read.
+    - Always use CTEs (Common Table Expressions) to organize complex logic. Avoid sub-queries unless absolutely unavoidable.
+    - Do not include JOINs unless data genuinely comes from multiple tables. If all necessary columns are in a single table, avoid JOINs entirely.
+    - Output only the SQL query, with inline comments explaining the logic. Do not include any natural language before or after the query, and do not use markdown code blocks (e.g., no triple backticks).
+    - Ensure the query is syntactically correct and optimized for performance.
+    """
     
     return ollama_chat_completion(query, system=system_prompt, context=context)
 
