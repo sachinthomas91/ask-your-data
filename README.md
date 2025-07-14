@@ -1,6 +1,16 @@
-# Ask Your Data 🤖
+# Ask Your Data 🤖## 🚀 Key Features
 
-An intelligent data assistant that lets you interact with your data warehouse using natural language. Built on top of your `dbt` models, it allows you to:
+- 🧠 **Natural Language Understanding**: Ask questions about your data models in plain English
+- 📝 **Automatic SQL Generation**: Get ready-to-use SQL queries based on your questions
+- 🔍 **Smart Documentation Search**: Find relevant model information instantly
+- 💻 **100% Local Processing**: All AI processing runs on your machine using [Ollama](https://ollama.com/)
+- 🔒 **Privacy First**: No data leaves your environment
+- 📊 **Interactive Chat UI**: Clean, conversational interface for natural interaction
+- 🎯 **Direct Query Execution**: Execute generated SQL queries with automatic result pagination
+- 📥 **Export Results**: Download query results as CSV files
+- 🔎 **Model Explorer**: Easily browse referenced models and their relationships
+- 🐘 **Persistent PostgreSQL**: Direct connection to your data warehouse
+- 🛠 **Flexible Setup**: Run locally or with Docker 🐳ligent data assistant that lets you interact with your data warehouse using natural language. Built on top of your `dbt` models, it allows you to:
 - Ask questions about your data models in plain English
 - Generate SQL queries automatically
 - Explore data relationships and documentation
@@ -96,7 +106,17 @@ pip install -r requirements.txt
 
 ### 2. Prepare Your Data
 
-1. **Configure dbt**:
+1. **Environment Setup**:
+   - Create a `.env` file in the project root with your database credentials:
+     ```env
+     POSTGRES_DB=your_database
+     POSTGRES_USER=your_user
+     POSTGRES_PASSWORD=your_password
+     POSTGRES_HOST=localhost
+     POSTGRES_PORT=5432
+     ```
+
+2. **Configure dbt**:
    - Update `dbt_ask_data/profiles.yml` with your database credentials
    - Add your models in `dbt_ask_data/models/`
    - Make sure your models have YAML documentation
@@ -149,13 +169,34 @@ Here are some things you can ask:
 
 ### Customizing the LLM
 
-You can change the AI models in `streamlit_apps/app_nl_query.py`:
+You can change the AI models in `streamlit_apps/app.py`:
 ```python
-OLLAMA_EMBED_MODEL = "nomic-embed-text"  # For embeddings
-OLLAMA_CHAT_MODEL = "mistral"           # For text generation
+OLLAMA_EMBED_MODEL = "nomic-embed-text"     # For embeddings
+OLLAMA_CHAT_MODEL = "qwen2.5-coder:7b"      # For SQL and text generation
 ```
 
+Recommended models:
+- For SQL generation: `qwen2.5-coder:7b`, `codellama:13b`
+- For general queries: `mistral`, `qwen2:7b`
+
 Available models can be found on [Ollama's model library](https://ollama.ai/library).
+
+### Using the Chat Interface
+
+1. **Natural Language Queries**:
+   - Ask questions about your data models in plain English
+   - The system will automatically detect if you need SQL or an explanation
+
+2. **SQL Generation & Execution**:
+   - For SQL queries, you'll see the generated SQL with explanatory comments
+   - Click "Execute Query" to run the query
+   - Results are automatically paginated (20 rows by default)
+   - Download results as CSV files
+
+3. **Model Exploration**:
+   - Referenced models are shown in expandable sections
+   - View model relationships and documentation
+   - Explore raw context for debugging
 
 ### Performance Tips
 
