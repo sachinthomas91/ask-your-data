@@ -19,6 +19,9 @@ requests>=2.31.0
 # Vector database support
 chromadb>=0.4.24
 
+# Visualization support
+plotly>=5.17.0
+
 # Optional: For type checking and linting (dev only)
 # mypy>=1.8.0
 # flake8>=7.0.0
