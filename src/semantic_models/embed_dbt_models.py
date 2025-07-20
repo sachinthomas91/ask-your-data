@@ -139,5 +139,5 @@ def embed_models_from_folder(folder_path: str):
 
 # Optional CLI entry point
 if __name__ == "__main__":
-    target_folder = os.path.join("dbt_ask_data", "models")
+    target_folder = os.path.join("dbt_ask_data", "models", "marts")
     embed_models_from_folder(target_folder)
