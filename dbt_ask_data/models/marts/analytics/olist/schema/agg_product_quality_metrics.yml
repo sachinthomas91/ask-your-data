@@ -1,0 +1,53 @@
+version: 2
+
+models:
+  - name: agg_product_quality_metrics
+    description: Product-level quality and performance metrics including review scores, return rates, and defect risk assessment. Used for quality management and product performance monitoring.
+    columns:
+      - name: product_id
+        description: Unique identifier for the product
+        tests:
+          - not_null
+          - unique
+          - relationships:
+              to: ref('stg_products')
+              field: product_id
+
+      - name: total_reviews
+        description: Total number of reviews received for this product
+
+      - name: avg_rating
+        description: Average review score for this product (scale 1-5, rounded to 2 decimal places)
+
+      - name: reviews_5_star
+        description: Number of 5-star reviews
+
+      - name: reviews_4_star
+        description: Number of 4-star reviews
+
+      - name: reviews_3_star
+        description: Number of 3-star reviews
+
+      - name: reviews_2_star
+        description: Number of 2-star reviews
+
+      - name: reviews_1_star
+        description: Number of 1-star reviews
+
+      - name: return_count
+        description: Number of canceled orders for this product (proxy for returns)
+
+      - name: return_rate
+        description: Percentage of orders that were canceled (rounded to 2 decimal places)
+
+      - name: satisfaction_rate
+        description: Percentage of reviews with 4+ star rating (rounded to 2 decimal places)
+
+      - name: total_orders
+        description: Total number of orders for this product
+
+      - name: quality_tier
+        description: Product quality tier (1-5) based on average rating and satisfaction rate. 5 = highest quality, 1 = lowest quality.
+
+      - name: defect_risk_score
+        description: Composite defect risk score (0-100) combining return rate (0-50) and rating performance (0-50). Higher score indicates higher risk.

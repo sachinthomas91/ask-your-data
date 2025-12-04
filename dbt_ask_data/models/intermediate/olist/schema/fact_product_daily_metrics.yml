@@ -1,0 +1,60 @@
+version: 2
+
+models:
+  - name: fact_product_daily_metrics
+    description: Daily-level product performance metrics including sales volume, revenue, customer engagement, and pricing data. Grain is product_id + order_date for trend analysis.
+    columns:
+      - name: product_id
+        description: Unique identifier for the product
+        tests:
+          - not_null
+          - relationships:
+              to: ref('stg_products')
+              field: product_id
+
+      - name: order_date
+        description: Date of the order (extracted from order_purchase_datetime)
+        tests:
+          - not_null
+
+      - name: units_sold
+        description: Number of distinct orders for this product on this date
+
+      - name: units_refunded
+        description: Number of canceled orders for this product on this date
+
+      - name: gross_revenue
+        description: Total revenue from item prices (rounded to 2 decimal places), excluding freight
+
+      - name: freight_revenue
+        description: Total freight/shipping revenue collected (rounded to 2 decimal places)
+
+      - name: total_revenue
+        description: Total revenue including both item prices and freight (rounded to 2 decimal places)
+
+      - name: distinct_buyers
+        description: Number of unique customers who purchased this product on this date
+
+      - name: distinct_sellers
+        description: Number of unique sellers selling this product on this date
+
+      - name: avg_review_score
+        description: Average review score for this product on this date (scale 1-5, rounded to 2 decimal places)
+
+      - name: review_count
+        description: Number of reviews received for this product on this date
+
+      - name: price_min
+        description: Minimum price charged for this product on this date (rounded to 2 decimal places)
+
+      - name: price_avg
+        description: Average price charged for this product on this date (rounded to 2 decimal places)
+
+      - name: price_max
+        description: Maximum price charged for this product on this date (rounded to 2 decimal places)
+
+      - name: freight_cost_pct_of_revenue
+        description: Freight cost as a percentage of gross revenue (rounded to 2 decimal places)
+
+      - name: created_at
+        description: Timestamp when this record was created (for lineage tracking)

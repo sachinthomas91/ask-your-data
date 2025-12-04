@@ -1,0 +1,47 @@
+version: 2
+
+models:
+  - name: agg_customer_repurchase_metrics
+    description: Customer-level repurchase behavior metrics for identifying repeat customers and predicting future purchase likelihood. Focuses on purchase frequency, intervals, and lifetime value.
+    columns:
+      - name: customer_id
+        description: Unique identifier for each customer
+        tests:
+          - not_null
+          - unique
+          - relationships:
+              to: ref('fact_orders')
+              field: customer_id
+
+      - name: total_purchases
+        description: Total number of purchases made by this customer (excluding canceled/unavailable orders)
+
+      - name: is_repeat_customer
+        description: Flag indicating if customer has made more than one purchase (1 = repeat, 0 = one-time)
+
+      - name: repeat_purchase_rate
+        description: Percentage of repeat purchases relative to total purchases (rounded to 2 decimal places). Calculated as (total_purchases - 1) / total_purchases * 100
+
+      - name: avg_days_between_purchases
+        description: Average number of days between consecutive purchases (rounded to 2 decimal places). Calculated excluding the first purchase.
+
+      - name: first_repeat_purchase_days
+        description: Number of days between first purchase and second purchase for repeat customers
+
+      - name: repeat_customer_lifetime_value
+        description: Total monetary value of all customer purchases (rounded to 2 decimal places)
+
+      - name: avg_repeat_order_value
+        description: Average monetary value per order for this customer (rounded to 2 decimal places)
+
+      - name: avg_repeat_satisfaction_score
+        description: Average review score for all orders by this customer (rounded to 2 decimal places, scale 1-5)
+
+      - name: last_repeat_purchase_date
+        description: Date of customer's most recent purchase
+
+      - name: purchase_count_tier
+        description: Customer purchase frequency tier - 'high_frequency' (10+ purchases), 'medium_frequency' (5-9), 'occasional' (3-4), or 'one_time' (1-2 purchases)
+
+      - name: repurchase_probability_pct
+        description: Estimated probability that customer will make another purchase (0-100%, rounded to 2 decimal places). Based on purchase frequency and history.

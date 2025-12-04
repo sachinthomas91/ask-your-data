@@ -18,10 +18,16 @@ enriched_deals as (
         cd.sdr_id,
         cd.sr_id,
 
+        -- MQL Link Status (flags orphaned deals with no MQL record)
+        case when mql.mql_id is not null then 'linked' else 'orphaned' end as mql_link_status,
+
         -- Deal Timestamps and Duration
         mql.mql_first_contact_date,
         cd.deal_closed_datetime,
-        DATE_PART('day', cd.deal_closed_datetime - mql.mql_first_contact_date) as days_to_close,
+        case
+          when mql.mql_first_contact_date is not null then DATE_PART('day', cd.deal_closed_datetime - mql.mql_first_contact_date)
+          else null
+        end as days_to_close,
 
         -- Marketing Source
         mql.mql_landing_page_id,
@@ -31,7 +37,7 @@ enriched_deals as (
         cd.lead_business_segment,
         cd.lead_business_category,
         cd.lead_behaviour_profile_category,
-        
+
         -- Business Metrics
         cd.has_company,
         cd.has_gtin,
@@ -40,7 +46,7 @@ enriched_deals as (
         cd.lead_business_monthly_revenue
 
     from closed_deals cd
-    inner join marketing_qualified_leads mql 
+    left join marketing_qualified_leads mql
         on cd.mql_id = mql.mql_id
 )
 

@@ -13,8 +13,12 @@ models:
         description: "Customer who placed the order"
       - name: order_status
         description: "Current status of the order (e.g., delivered, shipped, canceled)"
-      - name: order_purchase_timestamp
+        tests:
+          - not_null
+      - name: order_purchase_datetime
         description: "Timestamp when the order was placed"
+        tests:
+          - not_null
       - name: order_approved_at
         description: "Timestamp when the order was approved by payment system"
       - name: order_delivered_carrier_date
