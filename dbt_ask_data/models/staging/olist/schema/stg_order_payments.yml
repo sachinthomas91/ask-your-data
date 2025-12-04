@@ -14,3 +14,7 @@ models:
         description: "Number of installments chosen by the customer"
       - name: payment_value
         description: "Total amount paid with this payment method"
+        tests:
+          - not_null
+          - dbt_expectations.expect_column_values_to_be_between:
+              min_value: 0

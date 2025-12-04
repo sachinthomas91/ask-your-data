@@ -1,0 +1,31 @@
+version: 2
+
+models:
+  - name: dim_location
+    description: Geographic location dimension providing city, state, region mapping and metropolitan area classification. Primary key is zip_code.
+    columns:
+      - name: zip_code
+        description: Unique postal/zip code identifier
+        tests:
+          - not_null
+          - relationships:
+              to: ref('stg_geolocation')
+              field: zip_code
+
+      - name: city
+        description: City name
+
+      - name: state
+        description: Brazilian state abbreviation (2 letters, e.g., 'SP', 'RJ')
+
+      - name: region
+        description: Geographic region grouping - 'Southeast' (RJ, SP, ES, MG), 'South' (PR, SC, RS), 'Central-West', 'North', 'Northeast', or 'Unknown'
+
+      - name: metro_area
+        description: Metropolitan area classification indicating major metro areas (São Paulo Metro, Rio de Janeiro Metro, etc.) or 'Non-Metro' for other locations
+
+      - name: geographic_region_id
+        description: "Hierarchical identifier combining state and city sequence for region hierarchy. Format: STATE_SEQUENCE"
+
+      - name: created_at
+        description: Timestamp when this record was created (for lineage tracking)

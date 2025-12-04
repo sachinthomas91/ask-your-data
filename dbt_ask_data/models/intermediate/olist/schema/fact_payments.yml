@@ -1,0 +1,56 @@
+version: 2
+
+models:
+  - name: fact_payments
+    description: Independent payment fact table allowing analysis of payment patterns separately from orders. Grain is order_id + payment_type_sequence to handle multi-payment orders.
+    columns:
+      - name: order_id
+        description: Foreign key to the order
+        tests:
+          - not_null
+          - relationships:
+              to: ref('stg_orders')
+              field: order_id
+
+      - name: payment_id
+        description: Unique identifier for each payment (composite of order_id and payment_type_sequence)
+        tests:
+          - not_null
+          - unique
+
+      - name: payment_type_sequence
+        description: Sequence number for this payment within the order (1st payment, 2nd payment, etc.)
+        tests:
+          - not_null
+          - dbt_expectations.expect_column_values_to_be_between:
+              min_value: 1
+
+      - name: payment_type
+        description: Type of payment method (Credit Card, Debit Card, Voucher, etc.)
+        tests:
+          - not_null
+
+      - name: payment_value
+        description: Amount paid with this payment method (rounded to 2 decimal places)
+        tests:
+          - not_null
+          - dbt_expectations.expect_column_values_to_be_between:
+              min_value: 0
+
+      - name: payment_installment_count
+        description: Number of installments for this payment (1 if not installment plan)
+        tests:
+          - not_null
+          - dbt_expectations.expect_column_values_to_be_between:
+              min_value: 1
+
+      - name: payment_date
+        description: Date and time of the payment (from order purchase datetime)
+        tests:
+          - not_null
+
+      - name: is_refunded
+        description: Flag indicating if order was canceled/unavailable (1 = refunded/pending, 0 = completed)
+
+      - name: created_at
+        description: Timestamp when this record was created (for lineage tracking)

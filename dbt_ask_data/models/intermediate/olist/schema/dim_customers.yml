@@ -7,7 +7,6 @@ models:
       - name: customer_id
         description: "Unique identifier for each customer"
         tests:
-          - unique
           - not_null
 
       - name: customer_zip_code

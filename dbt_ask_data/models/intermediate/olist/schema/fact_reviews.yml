@@ -1,0 +1,63 @@
+version: 2
+
+models:
+  - name: fact_reviews
+    description: Independent review fact table allowing analysis of reviews separately from orders. Grain is review_id with rich context about customer, product, seller, and timing.
+    columns:
+      - name: review_id
+        description: Unique identifier for each review
+        tests:
+          - not_null
+          - relationships:
+              to: ref('stg_reviews')
+              field: review_id
+
+      - name: order_id
+        description: Foreign key to the order being reviewed
+        tests:
+          - not_null
+          - relationships:
+              to: ref('stg_orders')
+              field: order_id
+
+      - name: customer_id
+        description: Foreign key to the customer who submitted the review
+        tests:
+          - not_null
+
+      - name: review_score
+        description: Customer's review rating (scale 1-5)
+        tests:
+          - not_null
+          - dbt_expectations.expect_column_values_to_be_between:
+              min_value: 1
+              max_value: 5
+
+      - name: review_comment_title
+        description: Title/subject of the review comment
+
+      - name: review_comment_message
+        description: Full text of the review comment
+
+      - name: review_comment_length
+        description: Number of characters in the review comment message (0 if no comment)
+
+      - name: has_comment_flag
+        description: Flag indicating if review has text comment (1 = has comment, 0 = rating only)
+
+      - name: review_date
+        description: Date and time when the review was created
+        tests:
+          - not_null
+
+      - name: review_answer_datetime
+        description: Date and time when the seller answered the review (if applicable)
+
+      - name: order_purchase_datetime
+        description: Date and time of the original order purchase
+
+      - name: days_to_review
+        description: Number of days between order purchase and review submission
+
+      - name: created_at
+        description: Timestamp when this record was created (for lineage tracking)

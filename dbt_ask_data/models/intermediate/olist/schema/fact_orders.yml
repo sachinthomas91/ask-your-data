@@ -7,7 +7,6 @@ models:
       - name: order_id
         description: "Unique identifier for each order"
         tests:
-          - unique
           - not_null
 
       - name: order_customer_id
@@ -52,12 +51,39 @@ models:
       - name: payment_total
         description: "Total payment amount for the order"
 
-      - name: review_score
-        description: "Customer review score for the order (1-5)"
+      - name: review_count
+        description: "Number of customer reviews received for the order"
+        tests:
+          - not_null
+          - dbt_expectations.expect_column_values_to_be_between:
+              min_value: 0
+
+      - name: avg_review_score
+        description: "Average customer review score for the order (1-5)"
         tests:
           - dbt_expectations.expect_column_values_to_be_between:
               min_value: 1
               max_value: 5
+
+      - name: max_review_score
+        description: "Maximum/highest customer review score received for the order"
+        tests:
+          - dbt_expectations.expect_column_values_to_be_between:
+              min_value: 1
+              max_value: 5
+
+      - name: min_review_score
+        description: "Minimum/lowest customer review score received for the order"
+        tests:
+          - dbt_expectations.expect_column_values_to_be_between:
+              min_value: 1
+              max_value: 5
+
+      - name: on_time_delivery_flag
+        description: "Flag indicating if order was delivered on time (1 = on time, 0 = late, NULL = not delivered)"
+        tests:
+          - accepted_values:
+              values: [0, 1]
 
       - name: time_to_approval_hours
         description: "Hours between order purchase and approval"

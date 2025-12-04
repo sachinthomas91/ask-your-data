@@ -21,6 +21,12 @@ models:
       - name: sr_id
         description: Identifier for the Sales Representative who closed the deal
 
+      - name: mql_link_status
+        description: "Status indicating if deal is linked to an MQL record: 'linked' = deal has associated MQL, 'orphaned' = deal has no matching MQL"
+        tests:
+          - dbt_expectations.expect_column_values_to_be_in_set:
+              value_set: ['linked', 'orphaned']
+
       - name: mql_first_contact_date
         description: Timestamp when the lead first made contact through a marketing channel
 

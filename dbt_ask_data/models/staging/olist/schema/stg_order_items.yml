@@ -16,5 +16,13 @@ models:
         description: "Datetime limit for the seller to ship the item"
       - name: item_price
         description: "Selling price of the product"
-      - name: freight_value
+        tests:
+          - not_null
+          - dbt_expectations.expect_column_values_to_be_between:
+              min_value: 0
+      - name: item_freight_value
         description: "Shipping fee charged by the seller"
+        tests:
+          - not_null
+          - dbt_expectations.expect_column_values_to_be_between:
+              min_value: 0

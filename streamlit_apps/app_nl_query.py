@@ -11,9 +11,7 @@ import re
 from psycopg2.extras import RealDictCursor
 from dotenv import load_dotenv
 from typing import List, Dict, Any
-import plotly.express as px
-import plotly.graph_objects as go
-from datetime import datetime
+from intelligent_viz import IntelligentVisualizer
 
 # --- Load Environment Variables ---
 PROJECT_ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -28,7 +26,7 @@ else:
 DB_PATH = str(PROJECT_ROOT / ".chroma_store")
 COLLECTION_NAME = "dbt_schema_models"
 OLLAMA_EMBED_MODEL = "nomic-embed-text"
-OLLAMA_CHAT_MODEL = "qwen2.5-coder:7b" # "qwen2:7b" # "mistral"
+OLLAMA_CHAT_MODEL = "qwen3-coder:30b" # "qwen2:7b" # "mistral"
 OLLAMA_BASE_URL = "http://localhost:11434/api"
 
 # --- Verify ChromaDB store ---
@@ -176,255 +174,8 @@ def extract_sql_from_markdown(text: str) -> str:
         return sql_match.group(1).strip()
     return text.strip()
 
-# --- Visualization Utilities ---
-def analyze_dataframe_for_viz(df: pd.DataFrame) -> Dict[str, Any]:
-    """Analyze DataFrame to determine best visualization options"""
-    if df.empty:
-        return {"can_visualize": False, "reason": "Empty dataset"}
-    
-    analysis = {
-        "can_visualize": True,
-        "row_count": len(df),
-        "column_count": len(df.columns),
-        "columns": {},
-        "suggested_charts": []
-    }
-    
-    # Analyze each column
-    for col in df.columns:
-        col_info = {
-            "dtype": str(df[col].dtype),
-            "unique_count": df[col].nunique(),
-            "null_count": df[col].isnull().sum(),
-            "is_numeric": pd.api.types.is_numeric_dtype(df[col]),
-            "is_datetime": pd.api.types.is_datetime64_any_dtype(df[col]),
-            "is_categorical": False
-        }
-        
-        # Improved categorical detection logic
-        if not col_info["is_numeric"] and not col_info["is_datetime"]:
-            # String/object columns are categorical
-            col_info["is_categorical"] = True
-        elif 'id' in col.lower() and col_info["unique_count"] < len(df):
-            # ID columns (like seller_id, customer_id) should be categorical even if numeric
-            col_info["is_categorical"] = True
-        elif col_info["is_numeric"] and col_info["unique_count"] <= 10 and df[col].dtype in ['int64', 'int32'] and col_info["unique_count"] < len(df) * 0.3:
-            # Only very small integer columns with few unique values (like status codes, categories)
-            # But NOT floating point numbers which are likely continuous values
-            col_info["is_categorical"] = True
-        elif not col_info["is_numeric"] and col_info["unique_count"] < len(df) * 0.5:
-            # Non-numeric columns with less than 50% unique values
-            col_info["is_categorical"] = True
-        
-        analysis["columns"][col] = col_info
-    
-    # Determine suggested visualizations
-    numeric_cols = [col for col, info in analysis["columns"].items() if info["is_numeric"]]
-    categorical_cols = [col for col, info in analysis["columns"].items() if info["is_categorical"]]
-    datetime_cols = [col for col, info in analysis["columns"].items() if info["is_datetime"]]
-    
-    # Always suggest at least one visualization if we have data
-    if len(numeric_cols) >= 2:
-        analysis["suggested_charts"].append("scatter")
-    if len(categorical_cols) >= 1 and len(numeric_cols) >= 1:
-        analysis["suggested_charts"].append("bar")
-        analysis["suggested_charts"].append("box")
-    if len(categorical_cols) >= 1:
-        analysis["suggested_charts"].append("pie")
-    if len(datetime_cols) >= 1 and len(numeric_cols) >= 1:
-        analysis["suggested_charts"].append("line")
-    if len(numeric_cols) >= 1:
-        analysis["suggested_charts"].append("histogram")
-    
-    # Fallback: if no charts suggested but we have columns, suggest basic visualizations
-    if not analysis["suggested_charts"]:
-        if len(df.columns) >= 2:
-            # Try to create a basic bar chart with first two columns
-            analysis["suggested_charts"].append("bar")
-        if len(numeric_cols) >= 1:
-            analysis["suggested_charts"].append("histogram")
-    
-    return analysis
-
-def create_visualization(df: pd.DataFrame, chart_type: str, analysis: Dict[str, Any]) -> go.Figure | None:
-    """Create visualization based on data analysis"""
-    try:
-        numeric_cols = [col for col, info in analysis["columns"].items() if info["is_numeric"]]
-        categorical_cols = [col for col, info in analysis["columns"].items() if info["is_categorical"]]
-        datetime_cols = [col for col, info in analysis["columns"].items() if info["is_datetime"]]
-        
-        if chart_type == "bar" and categorical_cols and numeric_cols:
-            fig = px.bar(df, x=categorical_cols[0], y=numeric_cols[0],
-                        title=f"{numeric_cols[0]} by {categorical_cols[0]}")
-            
-        elif chart_type == "scatter" and len(numeric_cols) >= 2:
-            color_col = categorical_cols[0] if categorical_cols else None
-            fig = px.scatter(df, x=numeric_cols[0], y=numeric_cols[1], color=color_col,
-                           title=f"{numeric_cols[1]} vs {numeric_cols[0]}")
-            
-        elif chart_type == "line" and datetime_cols and numeric_cols:
-            fig = px.line(df, x=datetime_cols[0], y=numeric_cols[0],
-                         title=f"{numeric_cols[0]} over time")
-            
-        elif chart_type == "pie" and categorical_cols:
-            # Find numeric columns even more aggressively
-            all_numeric_cols = [col for col in df.columns if pd.api.types.is_numeric_dtype(df[col])]
-            
-            # Try to convert object columns to numeric if they contain numbers
-            potential_numeric_cols = []
-            for col in df.columns:
-                if df[col].dtype == 'object':
-                    # Try to convert to numeric
-                    try:
-                        # Remove any currency symbols, commas, etc.
-                        cleaned_series = df[col].astype(str).str.replace(r'[$,]', '', regex=True)
-                        numeric_series = pd.to_numeric(cleaned_series, errors='coerce')
-                        if not numeric_series.isna().all():  # If at least some values convert successfully
-                            potential_numeric_cols.append(col)
-                            # Update the dataframe with converted values
-                            df[col] = numeric_series
-                    except:
-                        continue
-            
-            # Combine all numeric columns
-            all_numeric_cols.extend(potential_numeric_cols)
-            value_col = numeric_cols[0] if numeric_cols else (all_numeric_cols[0] if all_numeric_cols else None)
-            
-            # Store debug info for later display
-            debug_info = {
-                "original_numeric_cols": [col for col in df.columns if pd.api.types.is_numeric_dtype(df[col])],
-                "converted_cols": potential_numeric_cols,
-                "all_numeric_cols": all_numeric_cols,
-                "detected_numeric_cols": numeric_cols,
-                "selected_value_col": value_col,
-                "pie_chart_created": False,
-                "using_counts": False
-            }
-            
-            if value_col:
-                # Show the actual data being used
-                pie_data = df[[categorical_cols[0], value_col]].dropna()
-                debug_info.update({
-                    "names_col": categorical_cols[0],
-                    "values_col": value_col,
-                    "pie_data": pie_data,
-                    "value_column_values": pie_data[value_col].tolist(),
-                    "value_column_dtype": str(pie_data[value_col].dtype),
-                    "name_column_values": pie_data[categorical_cols[0]].tolist()
-                })
-                
-                if not pie_data.empty and pd.api.types.is_numeric_dtype(pie_data[value_col]):
-                    # Try creating pie chart with explicit parameters
-                    fig = px.pie(
-                        pie_data, 
-                        names=categorical_cols[0], 
-                        values=value_col,
-                        title=f"Distribution of {value_col} by {categorical_cols[0]}"
-                    )
-                    # Add hover info to verify values are being used correctly
-                    fig.update_traces(
-                        hovertemplate="<b>%{label}</b><br>" +
-                                    f"{value_col}: %{{value}}<br>" +
-                                    "Percentage: %{percent}<br>" +
-                                    "<extra></extra>"
-                    )
-                    debug_info["pie_chart_created"] = True
-                else:
-                    st.error("No valid numeric data for pie chart after conversion attempts")
-                    return None
-            else:
-                # Only count occurrences if no numeric column exists
-                debug_info["using_counts"] = True
-                counts = df[categorical_cols[0]].value_counts()
-                fig = px.pie(values=counts.values, names=counts.index,
-                           title=f"Count Distribution of {categorical_cols[0]}")
-                debug_info["pie_chart_created"] = True
-                
-        elif chart_type == "histogram" and numeric_cols:
-            fig = px.histogram(df, x=numeric_cols[0],
-                             title=f"Distribution of {numeric_cols[0]}")
-            
-        elif chart_type == "box" and categorical_cols and numeric_cols:
-            fig = px.box(df, x=categorical_cols[0], y=numeric_cols[0],
-                        title=f"{numeric_cols[0]} distribution by {categorical_cols[0]}")
-            
-        else:
-            # Fallback: try to create a chart with any available columns
-            if len(df.columns) >= 2:
-                # Use first column as X and second as Y
-                first_col = df.columns[0]
-                second_col = df.columns[1]
-                
-                # Try to create a bar chart
-                try:
-                    fig = px.bar(df, x=first_col, y=second_col,
-                               title=f"{second_col} by {first_col}")
-                except:
-                    # If that fails, try scatter
-                    try:
-                        fig = px.scatter(df, x=first_col, y=second_col,
-                                       title=f"{second_col} vs {first_col}")
-                    except:
-                        return None
-            elif numeric_cols:
-                # Single numeric column - create histogram
-                fig = px.histogram(df, x=numeric_cols[0],
-                                 title=f"Distribution of {numeric_cols[0]}")
-            else:
-                return None
-                
-        fig.update_layout(height=500, showlegend=True)
-        
-        # Display unified debug information at the bottom (only for pie charts)
-        if chart_type == "pie" and 'debug_info' in locals():
-            with st.expander("🔧 Visualization Debug", expanded=False):
-                st.write(f"🔍 Debug - Original numeric columns: {debug_info['original_numeric_cols']}")
-                st.write(f"🔍 Debug - Converted object columns to numeric: {debug_info['converted_cols']}")
-                st.write(f"🔍 Debug - All numeric columns: {debug_info['all_numeric_cols']}")
-                st.write(f"🔍 Debug - Detected numeric_cols: {debug_info['detected_numeric_cols']}")
-                st.write(f"🔍 Debug - Selected value_col: {debug_info['selected_value_col']}")
-                
-                if debug_info['using_counts']:
-                    st.write("🔍 Debug - No numeric column found, using counts")
-                elif debug_info.get('pie_data') is not None:
-                    st.write(f"🔍 Debug - Using '{debug_info['names_col']}' as names and '{debug_info['values_col']}' as values")
-                    st.write("🔍 Debug - Actual pie chart data:")
-                    st.dataframe(debug_info['pie_data'])
-                    st.write(f"🔍 Debug - Value column '{debug_info['values_col']}' values: {debug_info['value_column_values']}")
-                    st.write(f"🔍 Debug - Value column dtype: {debug_info['value_column_dtype']}")
-                    st.write(f"🔍 Debug - Name column '{debug_info['names_col']}' values: {debug_info['name_column_values']}")
-                
-                st.write(f"🔍 Debug - Pie chart created successfully: {debug_info['pie_chart_created']}")
-        
-        return fig
-        
-    except Exception as e:
-        st.error(f"Error creating visualization: {e}")
-        return None
-
-def suggest_visualization_insights(df: pd.DataFrame, analysis: Dict[str, Any]) -> str:
-    """Generate insights about the data for visualization context"""
-    insights = []
-    
-    insights.append(f"📊 Dataset contains {analysis['row_count']} rows and {analysis['column_count']} columns.")
-    
-    numeric_cols = [col for col, info in analysis["columns"].items() if info["is_numeric"]]
-    categorical_cols = [col for col, info in analysis["columns"].items() if info["is_categorical"]]
-    
-    if numeric_cols:
-        insights.append(f"📈 Numeric columns: {', '.join(numeric_cols)}")
-    if categorical_cols:
-        insights.append(f"🏷️ Categorical columns: {', '.join(categorical_cols)}")
-        
-    if analysis["suggested_charts"]:
-        chart_names = {
-            "bar": "Bar Chart", "scatter": "Scatter Plot", "line": "Line Chart",
-            "pie": "Pie Chart", "histogram": "Histogram", "box": "Box Plot"
-        }
-        suggested = [chart_names[chart] for chart in analysis["suggested_charts"] if chart in chart_names]
-        insights.append(f"💡 Recommended visualizations: {', '.join(suggested)}")
-    
-    return "\n\n".join(insights)
+# --- Initialize Intelligent Visualizer ---
+visualizer = IntelligentVisualizer()
 
 # --- Streamlit UI Setup ---
 st.set_page_config(page_title="Ask Your dbt Models", layout="wide")
@@ -519,81 +270,104 @@ if st.session_state.current_query:
                         key=f"download_csv_{hash(st.session_state.current_query)}"
                     )
                 
-                # Visualization Analysis and Creation
+                # Intelligent Visualization - Context-aware and Actionable
                 with col2:
-                    viz_clicked = st.button("📈 Create Visualization", 
+                    viz_clicked = st.button("📈 Create Smart Visualizations",
                                           key=f"create_viz_{hash(st.session_state.current_query)}")
-                
-                if viz_clicked or f"viz_analysis_{hash(st.session_state.current_query)}" in st.session_state:
-                    # Store analysis in session state to persist across reruns
-                    analysis_key = f"viz_analysis_{hash(st.session_state.current_query)}"
-                    if analysis_key not in st.session_state:
-                        st.session_state[analysis_key] = analyze_dataframe_for_viz(df)
-                    
-                    analysis = st.session_state[analysis_key]
-                    
-                    if analysis["can_visualize"] and analysis["suggested_charts"]:
-                        st.markdown("### 📈 Data Visualization")
-                        
-                        # Show insights about the data
-                        with st.expander("📋 Data Analysis Insights", expanded=False):
-                            insights = suggest_visualization_insights(df, analysis)
-                            st.markdown(insights)
-                            
-                            # Debug information to help troubleshoot visualization issues
-                            st.markdown("**Column Analysis:**")
-                            for col, info in analysis["columns"].items():
-                                st.markdown(f"- **{col}**: {info['dtype']} | Unique: {info['unique_count']} | Numeric: {info['is_numeric']} | Categorical: {info['is_categorical']}")
-                            
-                            # Show column lists for debugging
-                            numeric_cols = [col for col, info in analysis["columns"].items() if info["is_numeric"]]
-                            categorical_cols = [col for col, info in analysis["columns"].items() if info["is_categorical"]]
-                            st.markdown(f"**Detected Numeric Columns**: {numeric_cols}")
-                            st.markdown(f"**Detected Categorical Columns**: {categorical_cols}")
-                            
-                            # Show sample of actual data
-                            st.markdown("**Sample Data:**")
-                            st.dataframe(df.head(3), use_container_width=True)
-                            
-                            # Show data types from pandas
-                            st.markdown("**Pandas Data Types:**")
-                            st.code(str(df.dtypes))
-                        
-                        # Chart selection
-                        chart_options = {
-                            "bar": "📊 Bar Chart",
-                            "scatter": "🔵 Scatter Plot", 
-                            "line": "📈 Line Chart",
-                            "pie": "🥧 Pie Chart",
-                            "histogram": "📊 Histogram",
-                            "box": "📦 Box Plot"
-                        }
-                        
-                        available_charts = [chart for chart in analysis["suggested_charts"] if chart in chart_options]
-                        
-                        if available_charts:
-                            selected_chart = st.selectbox(
-                                "Choose visualization type:",
-                                available_charts,
-                                format_func=lambda x: chart_options.get(x, str(x)),
-                                key=f"chart_select_{hash(st.session_state.current_query)}"
+
+                if viz_clicked or f"viz_results_{hash(st.session_state.current_query)}" in st.session_state:
+                    # Store visualization results in session state to persist across reruns
+                    viz_key = f"viz_results_{hash(st.session_state.current_query)}"
+                    if viz_key not in st.session_state:
+                        with st.spinner("Analyzing data and creating intelligent visualizations..."):
+                            viz_results = visualizer.create_visualizations(
+                                df,
+                                query=st.session_state.current_query
                             )
-                            
-                            # Create and display the visualization
-                            if selected_chart:
-                                with st.spinner("Creating visualization..."):
-                                    fig = create_visualization(df, selected_chart, analysis)
-                                    if fig:
-                                        st.plotly_chart(fig, use_container_width=True)
-                                    else:
-                                        st.warning("Could not create the selected visualization for this data.")
-                        else:
-                            st.info("No suitable visualizations available for this dataset.")
+                            st.session_state[viz_key] = viz_results
+
+                    viz_results = st.session_state[viz_key]
+
+                    if viz_results['charts']:
+                        st.markdown("### 📈 Intelligent Data Visualizations")
+
+                        # Show AI-generated insights
+                        st.markdown("#### 💡 Data Insights")
+                        st.markdown(viz_results['insights'])
+
+                        # Show detected query intent
+                        if viz_results['intents']:
+                            intent_badges = " • ".join([f"`{intent}`" for intent in viz_results['intents']])
+                            st.markdown(f"**Detected Analysis Type**: {intent_badges}")
+
+                        st.markdown("---")
+
+                        # Display all recommended charts
+                        for idx, chart_info in enumerate(viz_results['charts']):
+                            st.markdown(f"#### {chart_info['title']}")
+                            st.plotly_chart(chart_info['figure'], use_container_width=True)
+
+                            if idx < len(viz_results['charts']) - 1:
+                                st.markdown("---")
+
+                        # Optional: Show detailed data profile in expander
+                        with st.expander("🔍 Detailed Data Profile", expanded=False):
+                            profile = viz_results['profile']
+
+                            st.markdown("**Dataset Overview:**")
+                            st.write(f"- Rows: {profile.row_count:,}")
+                            st.write(f"- Columns: {profile.column_count}")
+                            st.write(f"- Numeric Columns: {len(profile.numeric_columns)}")
+                            st.write(f"- Categorical Columns: {len(profile.categorical_columns)}")
+                            st.write(f"- Time Series: {'Yes' if profile.has_time_series else 'No'}")
+
+                            st.markdown("**Column Details:**")
+                            for col_name, col_profile in profile.columns.items():
+                                st.markdown(f"**{col_name}**")
+                                st.write(f"  - Type: {col_profile.dtype}")
+                                st.write(f"  - Unique Values: {col_profile.unique_count}")
+                                st.write(f"  - Cardinality: {col_profile.cardinality}")
+
+                                if col_profile.is_numeric and col_profile.mean is not None:
+                                    st.write(f"  - Mean: {col_profile.mean:.2f}")
+                                    st.write(f"  - Range: {col_profile.min_val:.2f} - {col_profile.max_val:.2f}")
+
+                                if col_profile.is_categorical and col_profile.top_values:
+                                    top_5 = list(col_profile.top_values.items())[:5]
+                                    st.write(f"  - Top Values: {top_5}")
                     else:
-                        if not analysis["can_visualize"]:
-                            st.info(f"Visualization not available: {analysis.get('reason', 'Unknown reason')}")
-                        else:
-                            st.info("No suitable visualization patterns detected in this dataset.")
+                        # Show insights even if charts couldn't be created
+                        st.markdown("### 📊 Data Analysis")
+                        st.markdown("#### 💡 Data Insights")
+                        st.markdown(viz_results['insights'])
+
+                        # Show detected intent
+                        if viz_results['intents']:
+                            intent_badges = " • ".join([f"`{intent}`" for intent in viz_results['intents']])
+                            st.markdown(f"**Detected Analysis Type**: {intent_badges}")
+
+                        # Show detailed profile to help user understand structure
+                        with st.expander("🔍 Dataset Structure & Recommendations", expanded=True):
+                            profile = viz_results['profile']
+
+                            st.markdown("**Dataset Overview:**")
+                            st.write(f"- Rows: {profile.row_count:,}")
+                            st.write(f"- Columns: {profile.column_count}")
+                            st.write(f"- Numeric Columns: {len(profile.numeric_columns)} - {', '.join(profile.numeric_columns)}")
+                            st.write(f"- Categorical Columns: {len(profile.categorical_columns)} - {', '.join(profile.categorical_columns) if profile.categorical_columns else 'None'}")
+                            st.write(f"- ID Columns: {len(profile.id_columns)} - {', '.join(profile.id_columns) if profile.id_columns else 'None'}")
+
+                            st.info(
+                                "📌 **Why no visualizations?** Your dataset has mostly ID and numeric columns without categorical groupings. "
+                                "For better visualizations, try modifying your query to include:\n"
+                                "- **Categorical dimensions** (dates, categories, regions, statuses, segments)\n"
+                                "- **Aggregations by category** (e.g., 'by city', 'by status', 'by month')\n"
+                                "- **Examples:**\n"
+                                "  - 'Show customer metrics by customer status (Active/At Risk/Churned)'\n"
+                                "  - 'Show daily sales trends and review scores for the last 30 days'\n"
+                                "  - 'Show product performance by category with revenue and ratings'\n\n"
+                                "The data table above still shows all your results for analysis and download!"
+                            )
             else:
                 st.info("No results returned from the query.")
     

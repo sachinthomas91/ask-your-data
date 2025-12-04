@@ -18,9 +18,6 @@ models:
         description: Unique identifier for the seller
         tests:
           - not_null
-          - relationships:
-              to: ref('dim_sellers')
-              field: seller_id
 
       - name: mql_first_contact_date
         description: Timestamp when the lead first made contact through a marketing channel

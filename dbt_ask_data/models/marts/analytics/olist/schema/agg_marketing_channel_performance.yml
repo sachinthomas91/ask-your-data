@@ -1,0 +1,38 @@
+version: 2
+
+models:
+  - name: agg_marketing_channel_performance
+    description: Marketing channel performance and ROI assessment by channel category. Combines MQL metrics with deal outcomes and seller lifetime value for comprehensive marketing analysis.
+    columns:
+      - name: channel
+        description: Marketing lead channel category (e.g., Organic Search, Paid Search, Social Media, etc.)
+        tests:
+          - not_null
+          - unique
+
+      - name: mql_count
+        description: Total number of Marketing Qualified Leads generated from this channel
+
+      - name: deals_closed
+        description: Number of MQLs that resulted in closed deals
+
+      - name: mql_to_deal_conversion_rate
+        description: Percentage of MQLs that converted to closed deals (rounded to 2 decimal places)
+
+      - name: avg_days_to_close
+        description: Average number of days from MQL creation to deal closure (rounded to 2 decimal places)
+
+      - name: avg_deal_value
+        description: Average declared monthly revenue per closed deal (rounded to 2 decimal places)
+
+      - name: unique_sellers
+        description: Number of unique sellers acquired through this channel
+
+      - name: seller_ltv_vs_declared_revenue
+        description: Ratio of actual seller order value to declared revenue. Values >1 indicate outperformance (rounded to 2 decimal places)
+
+      - name: channel_roi
+        description: Estimated channel ROI as average revenue per MQL (deals_closed * avg_deal_value / mql_count, rounded to 2 decimal places)
+
+      - name: quality_score
+        description: "Composite channel quality score (0-100) combining conversion rate (0-40), speed to close (0-35), and LTV performance (0-25). Higher scores indicate better channel quality."

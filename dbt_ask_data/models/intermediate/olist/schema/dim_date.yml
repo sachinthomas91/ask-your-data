@@ -1,0 +1,104 @@
+version: 2
+
+models:
+  - name: dim_date
+    description: "Universal date dimension table providing time-based attributes for all fact tables. Covers the full range of order dates in the Olist dataset plus one year forward for forecasting purposes."
+    columns:
+      - name: calendar_date
+        description: "The actual date (PK)"
+        tests:
+          - unique
+          - not_null
+
+      - name: calendar_year
+        description: "Year component (e.g., 2016, 2017, 2018)"
+
+      - name: calendar_month
+        description: "Month component (1-12)"
+
+      - name: calendar_quarter
+        description: "Quarter component (1-4)"
+
+      - name: day_of_month
+        description: "Day of the month (1-31)"
+
+      - name: day_of_week_numeric
+        description: "Numeric day of week (0=Sunday, 1=Monday, ..., 6=Saturday)"
+
+      - name: iso_day_of_week
+        description: "ISO day of week (1=Monday, 2=Tuesday, ..., 7=Sunday)"
+
+      - name: day_of_year
+        description: "Sequential day of the year (1-365/366)"
+
+      - name: week_of_year
+        description: "Week number within the year (1-53)"
+
+      - name: iso_year
+        description: "ISO year (may differ from calendar year for days near year boundary)"
+
+      - name: iso_week_number
+        description: "ISO week number formatted as YYYY-Www (e.g., 2016-W01)"
+
+      - name: day_name
+        description: "Full day name (e.g., 'Monday', 'Tuesday')"
+
+      - name: day_abbreviation
+        description: "Three-letter day abbreviation (e.g., 'Mon', 'Tue')"
+
+      - name: month_name
+        description: "Full month name (e.g., 'January', 'February')"
+
+      - name: month_abbreviation
+        description: "Three-letter month abbreviation (e.g., 'Jan', 'Feb')"
+
+      - name: fiscal_year
+        description: "Fiscal year (currently equals calendar year; adjust if organization uses different fiscal year)"
+
+      - name: fiscal_quarter
+        description: "Fiscal quarter (currently equals calendar quarter)"
+
+      - name: fiscal_month
+        description: "Fiscal month (currently equals calendar month)"
+
+      - name: is_weekend_flag
+        description: "Flag indicating if date falls on a weekend (Saturday or Sunday) - 1 = weekend, 0 = weekday"
+
+      - name: is_weekday_flag
+        description: "Flag indicating if date falls on a weekday (Monday-Friday) - 1 = weekday, 0 = weekend"
+
+      - name: is_business_day_flag
+        description: "Flag indicating if date is a business day (weekday, excluding holidays) - 1 = business day, 0 = non-business day"
+
+      - name: is_first_day_of_month_flag
+        description: "Flag indicating if date is the first day of the month - 1 = yes, 0 = no"
+
+      - name: is_last_day_of_month_flag
+        description: "Flag indicating if date is the last day of the month - 1 = yes, 0 = no"
+
+      - name: is_monday_flag
+        description: "Flag indicating if date is a Monday - 1 = yes, 0 = no"
+
+      - name: is_friday_flag
+        description: "Flag indicating if date is a Friday - 1 = yes, 0 = no"
+
+      - name: is_week_start_flag
+        description: "Flag indicating if date is the start of the ISO week (Monday) - 1 = yes, 0 = no"
+
+      - name: is_week_end_flag
+        description: "Flag indicating if date is the end of the ISO week (Sunday) - 1 = yes, 0 = no"
+
+      - name: is_quarter_start_flag
+        description: "Flag indicating if date is the first day of a quarter - 1 = yes, 0 = no"
+
+      - name: is_year_start_flag
+        description: "Flag indicating if date is January 1st - 1 = yes, 0 = no"
+
+      - name: is_year_end_flag
+        description: "Flag indicating if date is December 31st - 1 = yes, 0 = no"
+
+      - name: days_since_epoch
+        description: "Number of days since January 1, 1970 (Unix epoch)"
+
+      - name: days_old
+        description: "Number of days since the date (from current date); negative values indicate future dates"

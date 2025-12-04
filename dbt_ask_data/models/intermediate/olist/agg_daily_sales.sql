@@ -12,10 +12,10 @@ with fact_orders as (
         ,round(sum(payment_total)::numeric, 2) as total_paid
         ,round(sum(CASE WHEN order_status = 'Canceled' THEN payment_total ELSE 0 END)::numeric, 2) as lost_revenue_canceled
         ,round(sum(CASE WHEN order_status = 'Unavailable' THEN payment_total ELSE 0 END)::numeric, 2) as lost_revenue_unavailable
-        ,round(avg(review_score)::numeric, 2) as avg_review_score
+        ,round(avg(avg_review_score)::numeric, 2) as avg_review_score
     from
         fact_orders
-    group by 
+    group by
         order_purchase_datetime::date
 )
 

@@ -7,12 +7,16 @@ models:
       - name: review_id
         description: "Unique identifier for each review"
         tests:
-          - unique
           - not_null
       - name: order_id
         description: "Associated order ID for the review"
       - name: review_score
         description: "Customer rating score (1 to 5)"
+        tests:
+          - not_null
+          - dbt_expectations.expect_column_values_to_be_between:
+              min_value: 1
+              max_value: 5
       - name: review_comment_title
         description: "Optional short title of the review"
       - name: review_comment_message

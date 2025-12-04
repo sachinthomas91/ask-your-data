@@ -1,0 +1,50 @@
+version: 2
+
+models:
+  - name: agg_customer_churn_risk
+    description: Customer-level churn risk assessment with probability scores and risk tiers. Identifies customers at risk of churn based on purchase recency, frequency, and value metrics.
+    columns:
+      - name: customer_id
+        description: Unique identifier for each customer
+        tests:
+          - not_null
+          - unique
+          - relationships:
+              to: ref('fact_orders')
+              field: customer_id
+
+      - name: first_purchase_date
+        description: Date of customer's first purchase
+
+      - name: last_purchase_date
+        description: Date of customer's most recent purchase
+
+      - name: days_since_last_purchase
+        description: Number of days since customer's last purchase (calculated from today)
+
+      - name: avg_days_between_purchases
+        description: Average number of days between customer purchases (calculated only if customer has 2+ purchases)
+
+      - name: expected_next_purchase_date
+        description: Predicted date of customer's next purchase based on historical purchase interval (only if customer has 2+ purchases)
+
+      - name: total_purchase_count
+        description: Total number of purchases made by this customer (excluding canceled/unavailable orders)
+
+      - name: avg_order_value
+        description: Average monetary value per order for this customer (rounded to 2 decimal places)
+
+      - name: total_lifetime_value
+        description: Total lifetime monetary value of all customer purchases (rounded to 2 decimal places)
+
+      - name: churn_risk_score
+        description: Composite churn risk score (0-100) based on recency (40 pts), frequency (30 pts), and monetary value (30 pts). Higher score indicates higher churn risk.
+
+      - name: churn_probability_pct
+        description: Estimated probability of customer churn as a percentage (0-100%), derived from churn_risk_score (rounded to 2 decimal places)
+
+      - name: churn_risk_tier
+        description: Customer churn risk category - 'very_high' (score ≥75), 'high' (60-74), 'medium' (40-59), or 'low' (<40)
+
+      - name: days_until_churn_threshold
+        description: Number of days before customer reaches "Churned" status (180+ days of inactivity). Zero if already churned.

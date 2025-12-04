@@ -45,11 +45,16 @@ with orders as (
 )
 
 ,aggregate_reviews as (
-  select 
+  select
      order_id
-    ,review_score
+    ,count(*) as review_count
+    ,round(avg(review_score)::numeric, 2) as avg_review_score
+    ,max(review_score) as max_review_score
+    ,min(review_score) as min_review_score
   from
     reviews
+  group by
+    order_id
 )
 
 select
@@ -64,7 +69,15 @@ select
   ,coalesce(pay.payment_method_type_count, 0) as payment_method_type_count
   ,coalesce(pay.payment_installment_count, 0) as payment_installment_count
   ,coalesce(pay.payment_total, 0) as payment_total
-  ,rev.review_score
+  ,coalesce(rev.review_count, 0) as review_count
+  ,rev.avg_review_score
+  ,rev.max_review_score
+  ,rev.min_review_score
+  ,case
+    when ord.order_delivered_customer_datetime <= ord.order_estimated_delivery_datetime then 1
+    when ord.order_delivered_customer_datetime is null then null
+    else 0
+   end as on_time_delivery_flag
   ,EXTRACT(EPOCH FROM (ord.order_approved_datetime - ord.order_purchase_datetime)) / 3600 as time_to_approval_hours
   ,EXTRACT(EPOCH FROM (ord.order_delivered_carrier_datetime - ord.order_purchase_datetime)) / 3600 as time_to_ship_hours
   ,EXTRACT(EPOCH FROM (ord.order_delivered_customer_datetime - ord.order_purchase_datetime)) / 3600 as time_to_deliver_hours

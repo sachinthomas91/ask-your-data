@@ -1,0 +1,83 @@
+version: 2
+
+models:
+  - name: bridge_product_seller
+    description: "Bridge table mapping the many-to-many relationship between products and sellers. Shows which sellers sell which products and their sales performance together."
+    columns:
+      - name: product_id
+        description: "Unique identifier for the product"
+        tests:
+          - not_null
+
+      - name: seller_id
+        description: "Unique identifier for the seller"
+        tests:
+          - not_null
+
+      - name: first_sale_date
+        description: "Date of the first order when this seller sold this product"
+        tests:
+          - not_null
+
+      - name: last_sale_date
+        description: "Date of the most recent order when this seller sold this product"
+        tests:
+          - not_null
+
+      - name: total_orders
+        description: "Number of distinct orders containing this product from this seller"
+        tests:
+          - not_null
+          - dbt_expectations.expect_column_values_to_be_between:
+              min_value: 1
+
+      - name: total_line_items
+        description: "Total number of line items (quantity) of this product sold by this seller across all orders"
+        tests:
+          - not_null
+          - dbt_expectations.expect_column_values_to_be_between:
+              min_value: 1
+
+      - name: total_revenue
+        description: "Total revenue from selling this product (excluding freight)"
+        tests:
+          - not_null
+          - dbt_expectations.expect_column_values_to_be_between:
+              min_value: 0
+
+      - name: total_freight_cost
+        description: "Total freight cost for this product sold by this seller"
+        tests:
+          - not_null
+          - dbt_expectations.expect_column_values_to_be_between:
+              min_value: 0
+
+      - name: total_revenue_with_freight
+        description: "Total revenue including freight costs"
+        tests:
+          - not_null
+          - dbt_expectations.expect_column_values_to_be_between:
+              min_value: 0
+
+      - name: avg_item_price
+        description: "Average unit price at which this seller sold this product"
+        tests:
+          - not_null
+          - dbt_expectations.expect_column_values_to_be_between:
+              min_value: 0
+
+      - name: avg_review_score
+        description: "Average review score for orders containing this product from this seller (1-5)"
+        tests:
+          - dbt_expectations.expect_column_values_to_be_between:
+              min_value: 1
+              max_value: 5
+
+      - name: order_count
+        description: "Number of orders containing this product from this seller (duplicate of total_orders)"
+
+      - name: days_since_last_sale
+        description: "Number of days since this seller's most recent sale of this product (from current date)"
+        tests:
+          - dbt_expectations.expect_column_values_to_be_between:
+              min_value: 0

@@ -1,0 +1,51 @@
+version: 2
+
+models:
+  - name: fact_order_lines
+    description: "Fact table containing detailed order line items with enriched customer, product, and seller dimensions, along with review scores"
+    columns:
+      - name: order_id
+        description: "Unique identifier for each order"
+        tests:
+          - not_null
+
+      - name: order_item_id
+        description: "Sequential identifier for items within the same order, used to identify line items uniquely"
+        tests:
+          - not_null
+
+      - name: customer_id
+        description: "Unique identifier for the customer who placed the order"
+
+      - name: order_status
+        description: "Current status of the order (e.g., delivered, shipped, canceled, processing)"
+
+      - name: product_id
+        description: "Unique identifier for the product sold in this line item"
+
+      - name: seller_id
+        description: "Unique identifier for the seller fulfilling this line item"
+
+      - name: shipping_limit_datetime
+        description: "Deadline for the seller to ship this item to the carrier"
+
+      - name: item_price
+        description: "Selling price of the product in this line item"
+        tests:
+          - not_null
+          - dbt_expectations.expect_column_values_to_be_between:
+              min_value: 0
+
+      - name: item_freight_value
+        description: "Shipping fee charged for this line item"
+        tests:
+          - not_null
+          - dbt_expectations.expect_column_values_to_be_between:
+              min_value: 0
+
+      - name: review_score
+        description: "Customer review score for the entire order (1-5 stars), shared across all line items of the same order"
+        tests:
+          - dbt_expectations.expect_column_values_to_be_between:
+              min_value: 1
+              max_value: 5
