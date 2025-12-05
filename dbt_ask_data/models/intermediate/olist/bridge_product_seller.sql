@@ -13,6 +13,10 @@ with order_lines as (
   select * from {{ ref('fact_orders') }}
 )
 
+, global_metrics as (
+  select max(order_purchase_datetime::date) as max_date from orders
+)
+
 select
   lin.product_id,
   lin.seller_id,
@@ -26,11 +30,13 @@ select
   round(avg(lin.item_price)::numeric, 2) as avg_item_price,
   round(avg(lin.review_score)::numeric, 2) as avg_review_score,
   count(distinct lin.order_id) as order_count,
-  (current_date - max(ord.order_purchase_datetime::date))::int as days_since_last_sale
+  (gm.max_date - max(ord.order_purchase_datetime::date))::int as days_since_last_sale
 
 from order_lines lin
 left join orders ord
   on lin.order_id = ord.order_id
+cross join global_metrics gm
 group by
   lin.product_id,
-  lin.seller_id
+  lin.seller_id,
+  gm.max_date

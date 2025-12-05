@@ -6,21 +6,26 @@ with fact_orders as (
     select * from {{ ref('fact_orders') }}
 )
 
+, global_metrics as (
+    select max(order_purchase_datetime::date) as max_date from fact_orders
+)
+
 , customer_purchase_recency as (
     select
         customer_id
         , max(order_purchase_datetime::date) as last_purchase_date
-        , (current_date - max(order_purchase_datetime::date)) as days_since_last_purchase
+        , (gm.max_date - max(order_purchase_datetime::date)) as days_since_last_purchase
         , min(order_purchase_datetime::date) as first_purchase_date
         , count(distinct order_id) as total_purchase_count
         , round(avg(order_total)::numeric, 2) as avg_order_value
         , round(sum(order_total)::numeric, 2) as total_lifetime_value
     from
         fact_orders
+    cross join global_metrics gm
     where
         order_status not in ('Canceled', 'Unavailable')
     group by
-        customer_id
+        customer_id, gm.max_date
 )
 
 , churn_risk_calculation as (

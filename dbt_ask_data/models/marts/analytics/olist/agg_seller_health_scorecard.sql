@@ -24,6 +24,10 @@ with fact_order_lines as (
     from {{ ref('fact_orders') }}
 )
 
+, global_metrics as (
+    select max(order_purchase_datetime::date) as max_date from fact_orders
+)
+
 , seller_orders as (
     select
         fol.seller_id
@@ -73,11 +77,12 @@ with fact_order_lines as (
         -- Tenure metrics
         , min(order_purchase_datetime::date) as first_sale_date
         , max(order_purchase_datetime::date) as last_sale_date
-        , (current_date - min(order_purchase_datetime::date)) as seller_tenure_days
+        , (gm.max_date - min(order_purchase_datetime::date)) as seller_tenure_days
     from
         seller_orders
+    cross join global_metrics gm
     group by
-        seller_id
+        seller_id, gm.max_date
 )
 
 , health_scoring as (

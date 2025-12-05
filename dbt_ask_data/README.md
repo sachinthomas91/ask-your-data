@@ -1,81 +1,89 @@
-# dbt_ask_data
+# Ask Your Data - Olist E-commerce & Marketing Analytics
 
-A comprehensive dbt project for transforming and analyzing Olist e-commerce platform data. This project follows dbt best practices with a multi-layered architecture for data transformation.
+This dbt project transforms the [Olist Brazilian E-commerce Public Dataset](https://www.kaggle.com/datasets/olistbr/brazilian-ecommerce) and the [Marketing Funnel Dataset](https://www.kaggle.com/datasets/olistbr/marketing-funnel-olist) into analytical data marts. It is designed to power the "Ask Your Data" natural language query application.
 
-## Project Overview
+## 📊 Project Overview
 
-This dbt project contains transformation models for the Olist dataset, including customer behavior, seller performance, product analytics, and marketing insights. The project is designed to support data-driven decision making and natural language queries on business data.
+The goal of this project is to provide clean, aggregated, and business-ready data for analyzing:
+- **Seller Performance**: Sales volume, revenue, and delivery performance.
+- **Customer Behavior**: Purchase frequency, monetary value, and churn risk.
+- **Sales Trends**: Daily and monthly revenue tracking.
+- **Marketing ROI**: Lead conversion rates, channel performance, and deal values.
 
-## Project Structure
+## 🏗️ Key Data Models
 
-The project is organized into three main layers:
+### Analytics Marts (`models/marts/analytics/olist`)
 
-### Staging (`models/staging/olist/`)
-Raw data cleaning and standardization layer. Creates views of source data with minimal transformations.
-- Customer, order, and product staging
-- Review and payment staging
-- Geolocation and category data
+*   **`agg_seller_performance`**: The core seller dimension. Contains aggregated metrics for every seller, including:
+    *   `total_orders`, `total_revenue`
+    *   `avg_delivery_delay_days`
+    *   `seller_status` (Active, Churned, etc.)
+    *   `dominant_category`
 
-### Intermediate (`models/intermediate/olist/`)
-Business logic and aggregations layer. Creates tables with dimensional and factual data.
-- **Dimensions**: `dim_customers`, `dim_products`, `dim_sellers`, `dim_date`, `dim_location`
-- **Facts**: `fact_orders`, `fact_order_lines`, `fact_payments`, `fact_reviews`, `fact_closed_deals`
-- **Aggregations**: Daily sales metrics, product-seller relationships
+*   **`agg_customer_performance`**: Customer-level analytics focusing on RFM (Recency, Frequency, Monetary) metrics:
+    *   `total_spent`, `order_count`
+    *   `days_since_last_purchase`
+    *   `customer_segment` (VIP, Regular, New, etc.)
 
-### Analytics/Marts (`models/marts/analytics/olist/`)
-Analytics-ready views for reporting and insights.
-- Customer segmentation and churn risk analysis
-- Seller and customer performance metrics
-- Product quality and repurchase metrics
-- Marketing channel performance analysis
+*   **`agg_sales_daily`**: A daily time-series of sales performance, useful for trend analysis and forecasting.
 
-## Getting Started
+*   **`agg_marketing_channel_performance`**: Marketing funnel analysis linking MQLs (Marketing Qualified Leads) to closed deals.
+    *   `mql_count`, `deals_closed`
+    *   `mql_to_deal_conversion_rate`
+    *   `avg_days_to_close`, `avg_deal_value`
+    *   `channel_roi`, `quality_score`
+
+*   **`agg_seller_health_scorecard`**: A composite scoring model that rates sellers based on sales, delivery speed, and review scores.
+
+## ⚙️ Technical Architecture
+
+### Handling Stale Data (Static Dataset)
+The Olist dataset covers the period from **2016 to 2018**. To make this static historical data useful for "current" analysis (e.g., calculating "days since last sale"), we implemented a **Stale Date Handling** strategy.
+
+Instead of using `CURRENT_DATE` (which would make all customers look churned in 2025), we use a dynamic reference date based on the maximum order date in the dataset.
+
+**Logic:**
+1.  A CTE `global_metrics` calculates `max_date` (the latest `order_purchase_timestamp` in the entire dataset).
+2.  All "recency" calculations (e.g., `days_since_last_purchase`) are calculated relative to this `max_date`.
+
+```sql
+-- Example Pattern
+WITH global_metrics AS (
+    SELECT MAX(order_purchase_timestamp)::DATE AS max_date 
+    FROM {{ ref('stg_olist__orders') }}
+)
+SELECT
+    seller_id,
+    (gm.max_date - last_sale_date) AS days_since_last_sale
+FROM ...
+CROSS JOIN global_metrics gm
+```
+
+This ensures that the analytics reflect the state of the business *as of the data's end date*, providing meaningful insights regardless of when the query is run.
+
+## 🚀 Getting Started
 
 ### Prerequisites
-- dbt installed (version compatible with your dbt Cloud/CLI setup)
-- Database connection configured in `profiles.yml`
+- dbt Core installed
+- Postgres database with Olist raw data loaded
 
-### Quick Start
+### Running the Project
 
-1. Install dependencies:
-   ```
-   dbt deps
-   ```
+1.  **Install Dependencies**:
+    ```bash
+    dbt deps
+    ```
 
-2. Run all models:
-   ```
-   dbt run
-   ```
+2.  **Build Models**:
+    ```bash
+    dbt run
+    ```
 
-3. Run tests:
-   ```
-   dbt test
-   ```
+3.  **Test Data Quality**:
+    ```bash
+    dbt test
+    ```
 
-4. Generate documentation:
-   ```
-   dbt docs generate
-   dbt docs serve
-   ```
-
-## Key Features
-
-- **Modular architecture** with clear separation of concerns
-- **Data quality tests** on critical models
-- **Comprehensive documentation** with column-level descriptions
-- **Schema organization** with staging, intermediate, and analytics schemas
-- **Seed data** for reference tables and static data
-
-## Configuration
-
-Models are configured in `dbt_project.yml` with:
-- Staging models materialized as views
-- Intermediate models materialized as tables
-- Analytics models materialized as views for optimal query performance
-
-## Resources
-
-- [dbt Documentation](https://docs.getdbt.com/docs/introduction)
-- [dbt Community](https://community.getdbt.com/)
-- [dbt Best Practices](https://docs.getdbt.com/guides/best-practices)
-- [Olist Dataset Documentation](https://www.kaggle.com/datasets/olistbr/brazilian-ecommerce)
+### Resources
+- Learn more about dbt [in the docs](https://docs.getdbt.com/docs/introduction)
+- Check out [Discourse](https://discourse.getdbt.com/) for commonly asked questions and answers
