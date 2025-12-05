@@ -1,5 +1,20 @@
 # src/semantic_models/embed_dbt_models.py
 
+"""
+DBT Model Embedding Service
+==========================
+
+This script handles the semantic embedding of dbt models into a ChromaDB vector store.
+It parses dbt `schema.yml` files, extracts model descriptions and column metadata,
+generates embeddings using a local Ollama instance, and stores them for retrieval.
+
+Key Features:
+- Recursive parsing of dbt project folders.
+- Robust error handling and retry logic for Ollama API calls.
+- Duplicate detection to avoid re-embedding unchanged models.
+- ChromaDB integration for persistent vector storage.
+"""
+
 import os
 import sys
 import yaml
@@ -32,6 +47,8 @@ os.makedirs(DB_PATH, exist_ok=True)
 
 try:
     # Initialize Chroma client with explicit settings
+    # We use a persistent client to ensure data is saved to disk at DB_PATH
+    # allow_reset=True enables us to wipe the database if needed (useful for development)
     client = chromadb.PersistentClient(
         path=DB_PATH,
         settings=Settings(
@@ -98,6 +115,8 @@ def ollama_embed(text: str, max_retries: int = 2) -> List[float]:
 
     for attempt in range(max_retries + 1):
         try:
+            # Make a POST request to the Ollama API
+            # We use a timeout to prevent hanging indefinitely if the model is slow to load
             response = requests.post(
                 f"{OLLAMA_BASE_URL}/api/embeddings",
                 json={"model": OLLAMA_EMBED_MODEL, "prompt": text},
@@ -265,6 +284,8 @@ def embed_models_from_folder(folder_path: str) -> Dict[str, int]:
                 try:
                     model_chunks = process_schema_yml(full_path)
                     for chunk in model_chunks:
+                        # Create a unique ID for the document based on file path and model name
+                        # This allows us to check if we've already embedded this exact model
                         uid = f"{chunk['file_path']}::{chunk['model_name']}"
                         doc_id = hashlib.md5(uid.encode()).hexdigest()
 

@@ -1,3 +1,20 @@
+"""
+Ask Your dbt Models - Natural Language Query Interface
+======================================================
+
+This Streamlit application provides a conversational interface for querying data warehouse models.
+It leverages:
+1.  **ChromaDB**: For semantic search over dbt model documentation.
+2.  **Ollama**: For running local LLMs (embedding and chat) to interpret queries and generate SQL.
+3.  **PostgreSQL**: For executing generated SQL queries against the data warehouse.
+4.  **IntelligentVisualizer**: For automatically generating relevant charts from query results.
+
+Key Features:
+- Semantic search to find relevant dbt models.
+- Text-to-SQL generation using local LLMs.
+- Interactive data visualization.
+- Session state management for a chat-like experience.
+"""
 import streamlit as st
 import chromadb
 from chromadb.config import Settings
@@ -48,6 +65,15 @@ except Exception as e:
 
 # --- Ollama Utilities ---
 def ollama_embed(text: str) -> list:
+    """
+    Generate embeddings for a given text using the local Ollama instance.
+
+    Args:
+        text: The input text to embed.
+
+    Returns:
+        List of floats representing the embedding vector.
+    """
     response = requests.post(
         f"{OLLAMA_BASE_URL}/embeddings",
         json={"model": OLLAMA_EMBED_MODEL, "prompt": text}
@@ -56,6 +82,17 @@ def ollama_embed(text: str) -> list:
     return response.json()["embedding"]
 
 def ollama_chat_completion(prompt: str, system: str | None = None, context: str | None = None) -> str:
+    """
+    Generate a chat completion using the local Ollama instance.
+
+    Args:
+        prompt: The user's query or prompt.
+        system: Optional system prompt to define the LLM's behavior.
+        context: Optional context string (e.g., retrieved documents) to include.
+
+    Returns:
+        The generated text response from the LLM.
+    """
     messages = []
     if system:
         messages.append({"role": "system", "content": system})
@@ -76,6 +113,19 @@ def ollama_chat_completion(prompt: str, system: str | None = None, context: str 
 
 # --- Query & Context Utilities ---
 def get_relevant_context(query: str, collection, n_results: int = 3) -> tuple[str, List[Dict[str, Any]]]:
+    """
+    Retrieve relevant dbt model documentation from ChromaDB based on the user query.
+
+    Args:
+        query: The user's natural language query.
+        collection: The ChromaDB collection to search.
+        n_results: Number of top results to retrieve.
+
+    Returns:
+        Tuple containing:
+        - Combined context string for the LLM.
+        - List of metadata dictionaries for the retrieved documents.
+    """
     query_embedding = ollama_embed(query)
     results = collection.query(
         query_embeddings=[query_embedding],
@@ -118,6 +168,12 @@ def answer_question(query: str, context: str) -> str:
 
 # --- Database Utilities ---
 def get_postgres_conn():
+    """
+    Establish a connection to the PostgreSQL database using environment variables.
+
+    Returns:
+        psycopg2 connection object or None if connection fails.
+    """
     required_vars = ["POSTGRES_DB", "POSTGRES_USER", "POSTGRES_PASSWORD", "POSTGRES_HOST"]
     missing_vars = [var for var in required_vars if not os.getenv(var)]
     
@@ -144,7 +200,12 @@ def get_postgres_conn():
         return None
 
 def execute_query(query: str) -> pd.DataFrame:
-    """Execute a SQL query and return results as a DataFrame"""
+    """
+    Execute a SQL query against the database and return results as a DataFrame.
+    
+    Handles connection management, basic query sanitization (removing semicolons),
+    and enforces a default LIMIT to prevent fetching too much data.
+    """
     try:
         conn = get_postgres_conn()
         if not conn:
