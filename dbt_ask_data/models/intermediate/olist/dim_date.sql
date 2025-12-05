@@ -76,10 +76,7 @@ date_details as (
     case when extract(month from calendar_date) = 12 and extract(day from calendar_date) = 31 then 1 else 0 end as is_year_end_flag,
 
     -- Days since/until epoch (useful for certain calculations)
-    (calendar_date - '1970-01-01'::date)::int as days_since_epoch,
-
-    -- Age in days from reference date (current date)
-    (current_date - calendar_date)::int as days_old
+    (calendar_date - '1970-01-01'::date)::int as days_since_epoch
 
   from date_spine
 )
@@ -115,7 +112,6 @@ select
   is_quarter_start_flag,
   is_year_start_flag,
   is_year_end_flag,
-  days_since_epoch,
-  days_old
+  days_since_epoch
 from date_details
 order by calendar_date

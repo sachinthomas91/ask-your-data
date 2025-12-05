@@ -2,12 +2,16 @@ with fact_orders as (
     select * from {{ ref('fact_orders') }}
 )
 
+, global_metrics as (
+    select max(order_purchase_datetime::date) as max_date from fact_orders
+)
+
 , aggregated_daily_sales as (
     select
         customer_id
         ,min(order_purchase_datetime::date) as first_purchase_date
         ,max(order_purchase_datetime::date) as last_purchase_date
-        ,(CURRENT_DATE - max(order_purchase_datetime::date)) as days_since_last_purchase
+        ,(gm.max_date - max(order_purchase_datetime::date)) as days_since_last_purchase
         ,(max(order_purchase_datetime::date) - min(order_purchase_datetime::date)) as customer_lifetime_days
         ,round(sum(order_total)::numeric, 2) as life_time_customer_value
         ,round(avg(order_total)::numeric, 2) as avg_order_value
@@ -25,9 +29,9 @@ with fact_orders as (
         ,round((SUM(CASE WHEN avg_review_score >= 4 THEN 1 ELSE 0 END)::numeric / NULLIF(count(avg_review_score), 0)) * 100, 2) as positive_review_rate
         -- Customer Status
         ,case 
-            when (CURRENT_DATE - max(order_purchase_datetime::date)) <= 30 then 'Active'
-            when (CURRENT_DATE - max(order_purchase_datetime::date)) <= 90 then 'At Risk'
-            when (CURRENT_DATE - max(order_purchase_datetime::date)) <= 180 then 'Churning'
+            when (gm.max_date - max(order_purchase_datetime::date)) <= 30 then 'Active'
+            when (gm.max_date - max(order_purchase_datetime::date)) <= 90 then 'At Risk'
+            when (gm.max_date - max(order_purchase_datetime::date)) <= 180 then 'Churning'
             else 'Churned'
         end as customer_status
         -- Customer Value Tier based on avg monthly spend
@@ -38,8 +42,9 @@ with fact_orders as (
         end as customer_value_tier
     from
         fact_orders
+    cross join global_metrics gm
     group by 
-        customer_id
+        customer_id, gm.max_date
 )
 
 select

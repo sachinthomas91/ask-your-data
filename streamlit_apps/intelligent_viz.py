@@ -169,7 +169,14 @@ class DataProfiler:
         is_boolean = pd.api.types.is_bool_dtype(series) or (unique_count == 2 and is_numeric)
 
         # ID detection - columns with 'id' in name and high uniqueness
-        is_id = ('id' in col.lower() and unique_count > len(df) * 0.8) or unique_count == len(df)
+        # Only treat as ID if it has 'id' in name OR if it's a string with high uniqueness
+        # Do NOT treat unique numeric columns as IDs automatically (they could be metrics like revenue)
+        is_id = False
+        if 'id' in col.lower():
+             if unique_count > len(df) * 0.8:
+                 is_id = True
+        elif not is_numeric and unique_count == len(df):
+             is_id = True
 
         # Categorical detection
         is_categorical = False
@@ -243,12 +250,16 @@ class DataProfiler:
             if prof.is_categorical and prof.cardinality in ['low', 'medium']
             and not prof.is_id
         ]
+        
+        # Sort dimensions to prefer non-numeric categorical columns first
+        primary_dimensions.sort(key=lambda col: (columns[col].is_numeric, columns[col].unique_count))
 
         # Identify primary metrics (best for measuring)
         primary_metrics = [
             col for col, prof in columns.items()
             if prof.is_numeric and not prof.is_id
-            and 'id' not in col.lower()
+            # Allow metrics with 'id' if they look like counts (e.g. order_id_count)
+            # or just include them if they are numeric and not the ID itself
         ]
 
         return DatasetProfile(
@@ -282,10 +293,12 @@ class IntelligentChartSelector:
 
         # Priority intent (first detected)
         primary_intent = intents[0] if intents else QueryIntent.UNKNOWN
-
-        # TREND intent - time series visualizations
-        if primary_intent == QueryIntent.TREND and profile.has_time_series:
+        
+        # 1. TREND ANALYSIS (Time Series)
+        # Always check for time series if available, or if explicitly requested
+        if profile.has_time_series and (primary_intent == QueryIntent.TREND or True): # "True" makes it greedy
             if profile.primary_metrics:
+                # Line chart for primary metric
                 recommendations.append((
                     ChartType.LINE,
                     {
@@ -296,9 +309,8 @@ class IntelligentChartSelector:
                     }
                 ))
 
-                # Add area chart for cumulative metrics
-                if any(word in profile.primary_metrics[0].lower()
-                      for word in ['total', 'cumulative', 'sum']):
+                # Area chart for cumulative metrics if relevant
+                if any(word in profile.primary_metrics[0].lower() for word in ['total', 'cumulative', 'sum']):
                     recommendations.append((
                         ChartType.AREA,
                         {
@@ -308,10 +320,30 @@ class IntelligentChartSelector:
                         }
                     ))
 
-        # COMPARISON intent - bar charts with grouping
-        elif primary_intent == QueryIntent.COMPARISON and profile.primary_dimensions:
-            if profile.primary_metrics:
-                # Check if we need grouped bars (multiple categories)
+        # 2. RANKING & COMPARISON (Bar Charts)
+        # Always useful if we have categories and metrics
+        if profile.primary_dimensions and profile.primary_metrics:
+            dim_col = profile.primary_dimensions[0]
+            metric_col = profile.primary_metrics[0]
+            
+            # Avoid self-comparison
+            if dim_col == metric_col and len(profile.primary_dimensions) > 1:
+                dim_col = profile.primary_dimensions[1]
+            
+            if dim_col != metric_col:
+                # Horizontal bar for ranking (Top N)
+                recommendations.append((
+                    ChartType.BAR,
+                    {
+                        'x': metric_col,
+                        'y': dim_col,
+                        'orientation': 'h',
+                        'title': f'Top {dim_col} by {metric_col}',
+                        'sort': True
+                    }
+                ))
+                
+                # Grouped bar if we have a second dimension
                 if len(profile.primary_dimensions) >= 2:
                     recommendations.append((
                         ChartType.GROUPED_BAR,
@@ -322,84 +354,74 @@ class IntelligentChartSelector:
                             'title': f'{profile.primary_metrics[0]} by {profile.primary_dimensions[0]} and {profile.primary_dimensions[1]}'
                         }
                     ))
-                else:
-                    recommendations.append((
-                        ChartType.BAR,
-                        {
-                            'x': profile.primary_dimensions[0],
-                            'y': profile.primary_metrics[0],
-                            'title': f'{profile.primary_metrics[0]} by {profile.primary_dimensions[0]}'
-                        }
-                    ))
 
-        # RANKING intent - sorted bar chart
-        elif primary_intent == QueryIntent.RANKING:
-            if profile.primary_dimensions and profile.primary_metrics:
+        # 3. DISTRIBUTION (Histograms/Box Plots)
+        # Useful for understanding data spread
+        if profile.primary_metrics:
+             recommendations.append((
+                ChartType.HISTOGRAM,
+                {
+                    'x': profile.primary_metrics[0],
+                    'title': f'Distribution of {profile.primary_metrics[0]}'
+                }
+            ))
+
+        # 4. COMPOSITION (Pie/Donut)
+        # Only if we have low cardinality dimensions
+        if profile.primary_dimensions and profile.primary_metrics:
+            dim_profile = profile.columns[profile.primary_dimensions[0]]
+            if dim_profile.cardinality == 'low':
                 recommendations.append((
-                    ChartType.BAR,
+                    ChartType.PIE,
                     {
-                        'x': profile.primary_metrics[0],
-                        'y': profile.primary_dimensions[0],
-                        'orientation': 'h',
-                        'title': f'Top {profile.primary_dimensions[0]} by {profile.primary_metrics[0]}',
-                        'sort': True
+                        'names': profile.primary_dimensions[0],
+                        'values': profile.primary_metrics[0],
+                        'title': f'{profile.primary_metrics[0]} Distribution by {profile.primary_dimensions[0]}'
                     }
                 ))
 
-        # COMPOSITION intent - pie/donut charts
-        elif primary_intent == QueryIntent.COMPOSITION:
-            if profile.primary_dimensions and profile.primary_metrics:
-                # Only use pie if low cardinality
-                dim_profile = profile.columns[profile.primary_dimensions[0]]
-                if dim_profile.cardinality == 'low':
-                    recommendations.append((
-                        ChartType.PIE,
-                        {
-                            'names': profile.primary_dimensions[0],
-                            'values': profile.primary_metrics[0],
-                            'title': f'{profile.primary_metrics[0]} Distribution by {profile.primary_dimensions[0]}'
-                        }
-                    ))
+        # 5. RELATIONSHIP (Scatter)
+        # If we have multiple metrics
+        if len(profile.primary_metrics) >= 2:
+             recommendations.append((
+                ChartType.SCATTER,
+                {
+                    'x': profile.primary_metrics[0],
+                    'y': profile.primary_metrics[1],
+                    'color': profile.primary_dimensions[0] if profile.primary_dimensions else None,
+                    'title': f'{profile.primary_metrics[1]} vs {profile.primary_metrics[0]}'
+                }
+            ))
 
-        # DISTRIBUTION intent - histograms and box plots
-        elif primary_intent == QueryIntent.DISTRIBUTION:
-            if profile.primary_metrics:
-                recommendations.append((
-                    ChartType.HISTOGRAM,
-                    {
-                        'x': profile.primary_metrics[0],
-                        'title': f'Distribution of {profile.primary_metrics[0]}'
-                    }
-                ))
+        # Deduplicate recommendations based on title and type
+        unique_recommendations = []
+        seen_configs = set()
+        
+        for chart_type, config in recommendations:
+            config_key = (chart_type, config.get('title'))
+            if config_key not in seen_configs:
+                unique_recommendations.append((chart_type, config))
+                seen_configs.add(config_key)
 
-                if profile.primary_dimensions:
-                    recommendations.append((
-                        ChartType.BOX,
-                        {
-                            'x': profile.primary_dimensions[0],
-                            'y': profile.primary_metrics[0],
-                            'title': f'{profile.primary_metrics[0]} Distribution by {profile.primary_dimensions[0]}'
-                        }
-                    ))
+        # Fallback: If no charts yet, try to use ID columns for Top N
+        if not unique_recommendations and profile.id_columns and profile.primary_metrics:
+            # Use the first ID column as a dimension
+            id_col = profile.id_columns[0]
+            metric_col = profile.primary_metrics[0]
+            
+            unique_recommendations.append((
+                ChartType.BAR,
+                {
+                    'x': metric_col,
+                    'y': id_col,
+                    'orientation': 'h',
+                    'title': f'Top {id_col} by {metric_col}',
+                    'sort': True
+                }
+            ))
 
-        # RELATIONSHIP intent - scatter plots and correlation
-        elif primary_intent == QueryIntent.RELATIONSHIP:
-            if len(profile.primary_metrics) >= 2:
-                recommendations.append((
-                    ChartType.SCATTER,
-                    {
-                        'x': profile.primary_metrics[0],
-                        'y': profile.primary_metrics[1],
-                        'color': profile.primary_dimensions[0] if profile.primary_dimensions else None,
-                        'title': f'{profile.primary_metrics[1]} vs {profile.primary_metrics[0]}'
-                    }
-                ))
-
-        # Default fallback - try to create something useful
-        if not recommendations:
-            recommendations = IntelligentChartSelector._get_fallback_charts(profile)
-
-        return recommendations
+        # Limit to reasonable number of charts (e.g., 4) to avoid overwhelming
+        return unique_recommendations[:4]
 
     @staticmethod
     def _get_fallback_charts(profile: DatasetProfile) -> List[Tuple[ChartType, Dict[str, Any]]]:
@@ -499,10 +521,17 @@ class SmartAggregator:
             metric_col = config.get('x') if config.get('orientation') == 'h' else config.get('y')
 
             if dim_col and metric_col:
-                # Group and aggregate
-                agg_df = df.groupby(dim_col)[metric_col].sum().reset_index()
-                # Sort and take top 10
-                agg_df = agg_df.nlargest(10, metric_col)
+                # Handle case where dimension and metric are the same column
+                if dim_col == metric_col:
+                    # If they are the same, we can't group by it and sum it meaningfully for a ranking
+                    # Instead, we should just take the top values
+                    agg_df = df.nlargest(10, metric_col)
+                else:
+                    # Group and aggregate
+                    agg_df = df.groupby(dim_col)[metric_col].sum().reset_index()
+                    # Sort and take top 10
+                    agg_df = agg_df.nlargest(10, metric_col)
+                
                 return agg_df
 
         # For categorical groupings, aggregate if needed
@@ -520,9 +549,20 @@ class SmartAggregator:
 
                     # Aggregate - sum if looks like a metric, otherwise count
                     if any(word in y_col.lower() for word in ['amount', 'total', 'sum', 'revenue', 'price', 'value']):
-                        agg_df = df.groupby(group_cols)[y_col].sum().reset_index()
+                        # Handle collision if grouping by the same column we are summing
+                        if y_col in group_cols:
+                            # If we are grouping by the value, we probably want a count of occurrences, not a sum of the value itself
+                            # Or we just return the unique values
+                            agg_df = df.groupby(group_cols).size().reset_index(name='count')
+                            # Swap y_col to be the count
+                            # Note: This changes the chart semantics, but prevents a crash
+                        else:
+                            agg_df = df.groupby(group_cols)[y_col].sum().reset_index()
                     else:
-                        agg_df = df.groupby(group_cols)[y_col].mean().reset_index()
+                        if y_col in group_cols:
+                             agg_df = df.groupby(group_cols).size().reset_index(name='count')
+                        else:
+                            agg_df = df.groupby(group_cols)[y_col].mean().reset_index()
 
                     return agg_df
 
@@ -670,7 +710,7 @@ class VisualizationEngine:
         if len(df) > 10:
             fig = px.scatter(df, x=config['x'], y=config['y'],
                            color=color_col,
-                           trendline='ols',
+                           # trendline='ols', # Requires statsmodels, removing for stability
                            title=config.get('title', ''))
         else:
             fig = px.scatter(df, x=config['x'], y=config['y'],
